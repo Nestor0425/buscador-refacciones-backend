@@ -1015,3 +1015,195 @@ app.get("/refacciones-metadata", async (req, res) => {
     unidades: unidades.rows.map(u => u.unidad)
   });
 });
+
+
+// INICIO DE SESION
+
+import { Request, Response, NextFunction } from "express";
+
+async function verificarSesion(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: "Token requerido" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET as string
+    ) as { id: number; rol: string };
+
+    const sesion = await pool.query(
+      `SELECT * FROM sesiones_activas 
+       WHERE token = $1 
+       AND expira_en > NOW()`,
+      [token]
+    );
+
+    if (sesion.rows.length === 0) {
+      return res.status(403).json({ error: "Sesión inválida o expirada" });
+    }
+
+    await pool.query(
+      `UPDATE sesiones_activas
+       SET ultima_actividad = NOW()
+       WHERE token = $1`,
+      [token]
+    );
+
+    req.usuario = decoded;
+
+    next();
+  } catch (err) {
+    return res.status(403).json({ error: "Token inválido" });
+  }
+}
+
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const result = await pool.query(
+      "SELECT * FROM usuarios WHERE email = $1 AND activo = true",
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Usuario no encontrado" });
+    }
+
+    const usuario = result.rows[0];
+
+    const passwordValida = await bcrypt.compare(password, usuario.password);
+
+    if (!passwordValida) {
+      return res.status(401).json({ error: "Contraseña incorrecta" });
+    }
+
+    const token = jwt.sign(
+      { id: usuario.id, rol: usuario.rol },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES }
+    );
+
+    await pool.query(
+      `INSERT INTO sesiones_activas 
+       (usuario_id, token, ip, user_agent, expira_en)
+       VALUES ($1, $2, $3, $4, NOW() + INTERVAL '8 hours')`,
+      [
+        usuario.id,
+        token,
+        req.ip,
+        req.headers["user-agent"]
+      ]
+    );
+
+    res.json({
+      token,
+      nombre: usuario.nombre,
+      rol: usuario.rol
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error en login" });
+  }
+});
+
+
+function permitirRoles(...rolesPermitidos: string[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.usuario) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
+    if (!rolesPermitidos.includes(req.usuario.rol)) {
+      return res.status(403).json({ error: "No tienes permisos" });
+    }
+
+    next();
+  };
+}
+
+app.get(
+  "/panel-admin",
+  verificarSesion,
+  permitirRoles("admin"),
+  (req, res) => {
+    res.json({ mensaje: "Panel admin" });
+  }
+);
+
+app.post("/logout", verificarSesion, async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: "Token requerido" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  await pool.query(
+    "DELETE FROM sesiones_activas WHERE token = $1",
+    [token]
+  );
+
+  res.json({ mensaje: "Sesión cerrada correctamente" });
+});
+
+app.post("/usuarios", verificarSesion, permitirRoles("admin"), async (req, res) => {
+  const { nombre, email, password, rol } = req.body;
+
+  const hash = await bcrypt.hash(password, 10);
+
+  await pool.query(
+    `INSERT INTO usuarios (nombre, email, password, rol)
+     VALUES ($1, $2, $3, $4)`,
+    [nombre, email, hash, rol]
+  );
+
+  res.json({ mensaje: "Usuario creado" });
+});
+
+app.get("/me", verificarSesion, (req, res) => {
+  res.json({
+    id: req.usuario?.id,
+    rol: req.usuario?.rol
+  });
+});
+
+app.get("/sesiones", verificarSesion, permitirRoles("admin"), async (req, res) => {
+  const result = await pool.query(`
+    SELECT s.id, u.nombre, u.email, s.ip, s.user_agent, s.creada_en, s.expira_en
+    FROM sesiones_activas s
+    JOIN usuarios u ON u.id = s.usuario_id
+    ORDER BY s.creada_en DESC
+  `);
+
+  res.json(result.rows);
+});
+
+app.delete("/sesiones/:id", verificarSesion, permitirRoles("admin"), async (req, res) => {
+  await pool.query(
+    "DELETE FROM sesiones_activas WHERE id = $1",
+    [req.params.id]
+  );
+
+  res.json({ mensaje: "Sesión cerrada por admin" });
+});
+
+setInterval(async () => {
+  await pool.query(
+    "DELETE FROM sesiones_activas WHERE expira_en < NOW()"
+  );
+}, 1000 * 60 * 10); // cada 10 minutos

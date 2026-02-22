@@ -14,10 +14,12 @@
   "description": "",
   "dependencies": {
     "@types/xlsx": "^0.0.35",
+    "bcrypt": "^6.0.0",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
     "pg": "^8.18.0",
     "streamifier": "^0.1.1",
