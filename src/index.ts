@@ -931,6 +931,7 @@ app.get("/refacciones-por-maquinamod", async (req, res) => {
 app.get("/buscar-refacciones", async (req, res) => {
 
   const {
+    tit,
     ref,
     modelo,
     tipo,
@@ -941,6 +942,22 @@ app.get("/buscar-refacciones", async (req, res) => {
   let condiciones = [];
   let valores = [];
   let contador = 1;
+
+  if (tit) {
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM refacciones
+      WHERE nombreprod ILIKE $1
+      ORDER BY id DESC
+      LIMIT 100
+      `,
+      [`%${tit}%`]
+    );
+
+    return res.json(result.rows);
+  }
 
   if (ref) {
     condiciones.push(`refinterna ILIKE $${contador++}`);
