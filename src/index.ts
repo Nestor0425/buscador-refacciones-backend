@@ -1224,3 +1224,19 @@ setInterval(async () => {
     "DELETE FROM sesiones_activas WHERE expira_en < NOW()"
   );
 }, 1000 * 60 * 10); // cada 10 minutos
+
+app.get("/refacciones/con-ubicacion", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT *
+      FROM refacciones
+      WHERE ubicacion IS NOT NULL
+      AND TRIM(ubicacion) <> ''
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Error al obtener refacciones" });
+  }
+});
