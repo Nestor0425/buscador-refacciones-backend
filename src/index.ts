@@ -714,12 +714,13 @@ import streamifier from "streamifier";
         JOIN refaccion_maquina rm ON rm.refaccion_id = r.id
         WHERE rm.maquina_id = $1
       `, [id]);
-
+console.log("MAQUINA_ID RECIBIDO:", id);
       res.json(rows);
     } catch (e) {
       console.error(e);
       res.status(500).json([]);
     }
+    
   });
   // REFACCIONES POR MODELO DE MAQUINA
   app.get("/refacciones-por-maquinamod", async (req, res) => {
@@ -741,6 +742,7 @@ import streamifier from "streamifier";
       console.error(e);
       res.status(500).json([]);
     }
+    
   });
   // REFACCIONES CON FILTROS DE BÚSQUEDA AVANZADA
   app.get("/buscar-refacciones", async (req, res) => {
