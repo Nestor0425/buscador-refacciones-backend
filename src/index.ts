@@ -1155,3 +1155,43 @@ console.log("MAQUINA_ID RECIBIDO:", id);
     res.status(500).json({ error: "Error" });
   }
 });
+
+app.delete("/refacciones/:id/imagen", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Obtener imagen actual
+    const result = await pool.query(
+      "SELECT imagen FROM refacciones WHERE id=$1",
+      [id]
+    );
+
+    const imagen = result.rows[0]?.imagen;
+
+    if (!imagen) {
+      return res.json({ ok: true });
+    }
+
+    // 🔥 Si es Cloudinary
+    if (imagen.includes("cloudinary")) {
+      // Extraer public_id de la URL
+      const parts = imagen.split("/");
+      const file = parts[parts.length - 1];
+      const publicId = "refacciones/" + file.split(".")[0];
+
+      await cloudinary.uploader.destroy(publicId);
+    }
+
+    // 🔹 Limpiar DB
+    await pool.query(
+      "UPDATE refacciones SET imagen=NULL WHERE id=$1",
+      [id]
+    );
+
+    res.json({ ok: true });
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false });
+  }
+});
