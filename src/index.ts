@@ -211,6 +211,10 @@ import streamifier from "streamifier";
     campos.imagen = imageUrl;
   }
 
+  else if (body.imagenUrl && body.imagenUrl.trim() !== "") {
+  campos.imagen = body.imagenUrl.trim();
+}
+
         // 🔹 actualizar refacción
         const keys = Object.keys(campos);
         const values = Object.values(campos);
