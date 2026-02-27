@@ -166,88 +166,178 @@ import streamifier from "streamifier";
     }
   );
   // Refacciones por id
-  app.put("/refacciones/:id",upload.single("imagen"),async (req, res) => {
+//   app.put("/refacciones/:id",upload.single("imagen"),async (req, res) => {
 
-      console.log("BODY:", req.body);
-      console.log("FILE:", req.file);
+//       console.log("BODY:", req.body);
+//       console.log("FILE:", req.file);
       
 
       
+//       try {
+//         const { id } = req.params;
+//         const body = req.body || {};
+
+//         // 🔹 compatibilidad viene como STRING
+//         let compatibilidad: number[] = [];
+//         if (body.compatibilidad) {
+//           compatibilidad = JSON.parse(body.compatibilidad);
+//         }
+
+//         // 🔹 campos normales
+//         const { compatibilidad: _c, ...campos } = body;
+//   const nummaquina = req.body.nummaquina || null;
+
+//   if (nummaquina !== null) {
+//     campos.nummaquina = nummaquina;
+//   }
+
+//         let imageUrl = null;
+//         // 🔹 si hay imagen
+//         if (req.file) {
+//     const uploadFromBuffer = () =>
+//       new Promise<string>((resolve, reject) => {
+//         const stream = cloudinary.uploader.upload_stream(
+//           { folder: "refacciones" },
+//           (error, result) => {
+//             if (error) reject(error);
+//             else resolve(result!.secure_url);
+//           }
+//         );
+
+//         streamifier.createReadStream(req.file!.buffer).pipe(stream);
+//       });
+
+//     imageUrl = await uploadFromBuffer();
+//     campos.imagen = imageUrl;
+//   }
+
+//   else if (body.imagenUrl && body.imagenUrl.trim() !== "") {
+//   campos.imagen = body.imagenUrl.trim();
+// }
+
+//         // 🔹 actualizar refacción
+//         const keys = Object.keys(campos);
+//         const values = Object.values(campos);
+
+//         if (keys.length > 0) {
+//           const set = keys.map((k, i) => `${k}=$${i + 1}`).join(",");
+
+//           await pool.query(
+//             `UPDATE refacciones SET ${set} WHERE id=$${keys.length + 1}`,
+//             [...values, id]
+//           );
+//         }
+
+//         // 🔹 actualizar compatibilidad
+//         await pool.query(
+//           "DELETE FROM refaccion_maquina WHERE refaccion_id=$1",
+//           [id]
+//         );
+
+//         for (const mid of compatibilidad) {
+//           await pool.query(
+//             "INSERT INTO refaccion_maquina (refaccion_id, maquina_id) VALUES ($1,$2)",
+//             [id, mid]
+//           );
+//         }
+
+//         res.json({ ok: true });
+//       } catch (e) {
+//         console.error(e);
+//         res.status(500).json({ ok: false });
+//       }
+//     }
+//   );
+app.put("/refacciones/:id", upload.single("imagen"), async (req, res) => {
+  console.log("BODY:", req.body);
+  console.log("FILE:", req.file);
+
+  try {
+    const { id } = req.params;
+    const body = req.body || {};
+
+    // 🔹 compatibilidad viene como STRING
+    let compatibilidad: number[] = [];
+    if (body.compatibilidad) {
       try {
-        const { id } = req.params;
-        const body = req.body || {};
-
-        // 🔹 compatibilidad viene como STRING
-        let compatibilidad: number[] = [];
-        if (body.compatibilidad) {
-          compatibilidad = JSON.parse(body.compatibilidad);
-        }
-
-        // 🔹 campos normales
-        const { compatibilidad: _c, ...campos } = body;
-  const nummaquina = req.body.nummaquina || null;
-
-  if (nummaquina !== null) {
-    campos.nummaquina = nummaquina;
-  }
-
-        let imageUrl = null;
-        // 🔹 si hay imagen
-        if (req.file) {
-    const uploadFromBuffer = () =>
-      new Promise<string>((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: "refacciones" },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result!.secure_url);
-          }
-        );
-
-        streamifier.createReadStream(req.file!.buffer).pipe(stream);
-      });
-
-    imageUrl = await uploadFromBuffer();
-    campos.imagen = imageUrl;
-  }
-
-  else if (body.imagenUrl && body.imagenUrl.trim() !== "") {
-  campos.imagen = body.imagenUrl.trim();
-}
-
-        // 🔹 actualizar refacción
-        const keys = Object.keys(campos);
-        const values = Object.values(campos);
-
-        if (keys.length > 0) {
-          const set = keys.map((k, i) => `${k}=$${i + 1}`).join(",");
-
-          await pool.query(
-            `UPDATE refacciones SET ${set} WHERE id=$${keys.length + 1}`,
-            [...values, id]
-          );
-        }
-
-        // 🔹 actualizar compatibilidad
-        await pool.query(
-          "DELETE FROM refaccion_maquina WHERE refaccion_id=$1",
-          [id]
-        );
-
-        for (const mid of compatibilidad) {
-          await pool.query(
-            "INSERT INTO refaccion_maquina (refaccion_id, maquina_id) VALUES ($1,$2)",
-            [id, mid]
-          );
-        }
-
-        res.json({ ok: true });
-      } catch (e) {
-        console.error(e);
-        res.status(500).json({ ok: false });
+        compatibilidad = JSON.parse(body.compatibilidad);
+      } catch {
+        compatibilidad = [];
       }
     }
-  );
+
+    // 🔹 separar campos normales
+    const { compatibilidad: _c, imagenUrl: _iu, ...campos } = body;
+
+    const nummaquina = body.nummaquina || null;
+    if (nummaquina !== null) {
+      campos.nummaquina = nummaquina;
+    }
+
+    // 🔥 NORMALIZAR imagenUrl (puede venir string o array)
+    let imagenUrl = body.imagenUrl;
+
+    if (Array.isArray(imagenUrl)) {
+      imagenUrl = imagenUrl[0]; // tomamos solo la primera
+    }
+
+    // 🔹 si hay archivo → subir a Cloudinary
+    if (req.file) {
+      const uploadFromBuffer = () =>
+        new Promise<string>((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: "refacciones" },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result!.secure_url);
+            }
+          );
+
+          streamifier.createReadStream(req.file!.buffer).pipe(stream);
+        });
+
+      const imageUrl = await uploadFromBuffer();
+      campos.imagen = imageUrl;
+    }
+
+    // 🔹 si NO hay archivo pero sí URL válida
+    else if (typeof imagenUrl === "string" && imagenUrl.trim() !== "") {
+      campos.imagen = imagenUrl.trim();
+    }
+
+    // 🔹 actualizar refacción
+    const keys = Object.keys(campos);
+    const values = Object.values(campos);
+
+    if (keys.length > 0) {
+      const set = keys.map((k, i) => `${k}=$${i + 1}`).join(",");
+
+      await pool.query(
+        `UPDATE refacciones SET ${set} WHERE id=$${keys.length + 1}`,
+        [...values, id]
+      );
+    }
+
+    // 🔹 actualizar compatibilidad
+    await pool.query(
+      "DELETE FROM refaccion_maquina WHERE refaccion_id=$1",
+      [id]
+    );
+
+    for (const mid of compatibilidad) {
+      await pool.query(
+        "INSERT INTO refaccion_maquina (refaccion_id, maquina_id) VALUES ($1,$2)",
+        [id, mid]
+      );
+    }
+
+    res.json({ ok: true });
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false });
+  }
+});
   // Borrar refacción POR ID
   app.delete("/refacciones/:id", async (req, res) => {
     try {
