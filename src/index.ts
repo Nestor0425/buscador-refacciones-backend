@@ -48,7 +48,7 @@ app.get("/logs", (req, res) => {
   });
 
   app.listen(5000, () => {
-    log("INFO", "Backend iniciado", { puerto: 5000 }, "/server");
+    log("INFO", "Backend iniciado", null, { puerto: 5001, entorno: process.env.NODE_ENV, version: "1.0" }, "/server" );
   });
 
 
@@ -58,7 +58,7 @@ app.get("/logs", (req, res) => {
       res.json({ ok: true, message: "Backend y base de datos conectados", time: result.rows[0].now,});
     } catch (e) {
       const error = e as Error;
-      log("ERROR", "Error en proceso", { message: error.message,stack: error.stack}, "/refacciones");
+      log( "ERROR", "Error en proceso", _req, { message: error.message, stack: error.stack },"/refacciones" );
       res.status(500).json({ ok: false, message: "Error conectando a la base de datos",});
     }
   });
@@ -98,17 +98,28 @@ app.get("/logs", (req, res) => {
       });
 
     } catch (error) {
-     const err = error as Error;
 
-log("ERROR", "Error en consulta", {
-  message: err.message,
-  stack: err.stack
-}, "/consulta");
-      return res.status(500).json({
-        ok: false,
-        error: "Error al consultar la base"
-      });
-    }
+  const err = error as Error;
+
+  log(
+    "ERROR",
+    "Error en consulta",
+    req,
+    {
+      message: err.message,
+      stack: err.stack,
+      query: req.query,
+      body: req.body
+    },
+    "/consulta"
+  );
+
+  return res.status(500).json({
+    ok: false,
+    error: "Error al consultar la base"
+  });
+
+}
   });
 
   app.get("/logs-db", async (req, res) => {
@@ -198,19 +209,38 @@ log("ERROR", "Error en consulta", {
         });
 
       } catch (error) {
-        const err = error as Error;
 
-log("ERROR", "Error en consulta", {
-  message: err.message,
-  stack: err.stack
-}, "/consulta");
-        res.status(500).json({ ok: false });
-      }
+  const err = error as Error;
+
+  log(
+    "ERROR",
+    "Error en consulta",
+    req,
+    {
+      message: err.message,
+      stack: err.stack,
+      query: req.query,
+      body: req.body
+    },
+    "/consulta"
+  );
+
+  res.status(500).json({ ok: false });
+
+}
     }
   );
 
 app.get("/refacciones/destacadas", async (req, res) => {
-    log("INFO", "Intento de carga de destacadas", { usuario: req.usuario?.email }, "/destacadas");
+  log(
+  "INFO",
+  "Intento de carga de destacadas",
+  req,
+  {
+    accion: "ver_destacadas"
+  },
+  "/destacadas"
+);
   try {
     // 1. Verificamos si el pool existe
     if (!pool) {
@@ -843,7 +873,7 @@ log("INFO", "Maquina ID recibido", { maquinaId: id }, "/maquinas");
         WHERE LOWER(TRIM(m.maquinamod)) = LOWER(TRIM($1))
       `, [maquinamod]);
 
-      log("INFO", "Refacciones por modelo obtenidas", { cantidad: rows.length }, "/refacciones-por-maquinamod");
+      (log)("INFO", "Refacciones por modelo obtenidas", { cantidad: rows.length }, "/refacciones-por-maquinamod");
 
       res.json(rows);
     } catch (e) {
