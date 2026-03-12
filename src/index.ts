@@ -7,6 +7,8 @@ import XLSX from "xlsx";
 import { v2 as cloudinary } from "cloudinary";
 import streamifier from "streamifier";
 
+
+
   // ALmacenamiento en la nube de imágenes
   cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
@@ -21,6 +23,10 @@ import streamifier from "streamifier";
 
   app.use(cors());
   app.use(express.json());
+
+  app.get("/ping", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 
   // Conexion con la base de datos
   const pool = new Pool({
