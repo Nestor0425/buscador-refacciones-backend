@@ -56,7 +56,7 @@ app.get("/logs", (req, res) => {
 });
 
   // Conexion con la base de datos
-  const pool = new Pool({
+  export const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
   });
@@ -130,6 +130,25 @@ log("ERROR", "Error en consulta", {
       });
     }
   });
+
+  app.get("/logs-db", async (req, res) => {
+
+  try {
+
+    const result = await pool.query(
+      "SELECT * FROM logs ORDER BY created_at DESC LIMIT 100"
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+
+    res.status(500).json({ ok:false });
+
+  }
+
+});
+
   // Importar Excel
   app.post(
     "/importar-excel",
