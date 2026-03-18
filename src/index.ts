@@ -4,18 +4,23 @@ import { Pool } from "pg";
 import dotenv from "dotenv";
 import multer from "multer";
 import XLSX from "xlsx";
-import { v2 as cloudinary } from "cloudinary";
-import streamifier from "streamifier";
+// import { v2 as cloudinary } from "cloudinary";
+// import streamifier from "streamifier";
 import { log } from "./logger";
-
+import { createClient } from "@supabase/supabase-js";
 
 
   // ALmacenamiento en la nube de imágenes
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
-    api_key: process.env.CLOUDINARY_API_KEY!,
-    api_secret: process.env.CLOUDINARY_API_SECRET!
-  });
+  // cloudinary.config({
+  //   cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
+  //   api_key: process.env.CLOUDINARY_API_KEY!,
+  //   api_secret: process.env.CLOUDINARY_API_SECRET!
+  // });
+
+  const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_KEY!
+);
 
   dotenv.config();
 
@@ -323,22 +328,20 @@ log("INFO", "Archivo recibido", { file: req.file?.originalname }, "/upload");
 
     // 🔹 si hay archivo → subir a Cloudinary
     if (req.file) {
-      const uploadFromBuffer = () =>
-        new Promise<string>((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            { folder: "refacciones" },
-            (error, result) => {
-              if (error) reject(error);
-              else resolve(result!.secure_url);
-            }
-          );
+  const fileName = `refaccion_${Date.now()}_${req.file.originalname}`;
 
-          streamifier.createReadStream(req.file!.buffer).pipe(stream);
-        });
+  const { error } = await supabase.storage
+    .from("refacciones")
+    .upload(fileName, req.file.buffer, {
+      contentType: req.file.mimetype,
+    });
 
-      const imageUrl = await uploadFromBuffer();
-      campos.imagen = imageUrl;
-    }
+  if (error) throw error;
+
+  const publicUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/refacciones/${fileName}`;
+
+  campos.imagen = publicUrl;
+}
 
     // 🔹 si NO hay archivo pero sí URL válida
     else if (typeof imagenUrl === "string" && imagenUrl.trim() !== "") {
@@ -1256,11 +1259,18 @@ log("INFO", "Maquina ID recibido", { maquinaId: id }, "/maquinas");
   }
 });
 
+
+
+
+
+// MASSSSSSSS
+
+
 app.delete("/refacciones/:id/imagen", async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Obtener imagen actual
+    // 🔹 Obtener URL de imagen actual
     const result = await pool.query(
       "SELECT imagen FROM refacciones WHERE id=$1",
       [id]
@@ -1272,14 +1282,19 @@ app.delete("/refacciones/:id/imagen", async (req, res) => {
       return res.json({ ok: true });
     }
 
-    // 🔥 Si es Cloudinary
-    if (imagen.includes("cloudinary")) {
-      // Extraer public_id de la URL
-      const parts = imagen.split("/");
-      const file = parts[parts.length - 1];
-      const publicId = "refacciones/" + file.split(".")[0];
+    // 🔥 Si la imagen está en Supabase
+    if (imagen.includes("/storage/v1/object/public/refacciones/")) {
 
-      await cloudinary.uploader.destroy(publicId);
+      // 👉 Extraer nombre del archivo desde la URL
+      const fileName = imagen.split("/").pop();
+
+      if (fileName) {
+        const { error } = await supabase.storage
+          .from("refacciones")
+          .remove([fileName]);
+
+        if (error) throw error;
+      }
     }
 
     // 🔹 Limpiar DB
@@ -1292,7 +1307,13 @@ app.delete("/refacciones/:id/imagen", async (req, res) => {
 
   } catch (e) {
     const error = e as Error;
-      log("ERROR", "Error capturado", { message: error.message, stack: error.stack }, "/server");
+    log(
+      "ERROR",
+      "Error capturado",
+      { message: error.message, stack: error.stack },
+      "/server"
+    );
+
     res.status(500).json({ ok: false });
   }
 });
