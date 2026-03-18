@@ -1,7 +1,9 @@
+import dotenv from "dotenv";
+dotenv.config();
 import express from "express";
 import cors from "cors";
 import { Pool } from "pg";
-import dotenv from "dotenv";
+
 import multer from "multer";
 import XLSX from "xlsx";
 // import { v2 as cloudinary } from "cloudinary";
@@ -22,7 +24,7 @@ import { createClient } from "@supabase/supabase-js";
   process.env.SUPABASE_KEY!
 );
 
-  dotenv.config();
+  
 
   const upload = multer({ storage: multer.memoryStorage() });
   const app = express();
@@ -341,9 +343,11 @@ log("INFO", "Archivo recibido", { file: req.file?.originalname }, "/upload");
 
   if (error) throw error;
 
-  const publicUrl = `${process.env.SUPABASE_URL}/storage/v1/object/public/refacciones/${fileName}`;
+  const { data } = supabase.storage
+    .from("refacciones")
+    .getPublicUrl(fileName);
 
-  campos.imagen = publicUrl;
+  campos.imagen = data.publicUrl;
 }
 
     // 🔹 si NO hay archivo pero sí URL válida
@@ -1296,7 +1300,7 @@ app.delete("/refacciones/:id/imagen", async (req, res) => {
 
       if (fileName) {
         const { error } = await supabase.storage
-          .from("refacciones")
+          .from("Refacciones")
           .remove([fileName]);
 
         if (error) throw error;
