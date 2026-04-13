@@ -245,6 +245,9 @@ setInterval(async () => {
   }
 }, 1000 * 60 * 10);
 
-app.listen(5000, () => {
-  log("INFO", "Backend iniciado", null, { puerto: 5000 }, "/server");
+// --- INICIO DEL SERVIDOR (CAMBIO DINÁMICO PARA RENDER) ---
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  log("INFO", "Backend iniciado", null, { puerto: PORT }, "/server");
 });
